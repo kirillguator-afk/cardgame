@@ -4,8 +4,13 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: '', // Важно для GitHub Pages: пустая строка делает пути относительными
+  base: '', 
+  define: {
+    // PeerJS и некоторые другие библиотеки могут требовать global
+    'global': 'window',
+  },
   build: {
     outDir: 'dist',
+    target: 'esnext', // Важно для поддержки современных фич WebRTC
   }
 });

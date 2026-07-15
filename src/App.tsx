@@ -10,20 +10,18 @@ import { logToTelegram } from './services/TelegramLogger';
 import { ProfileService } from './services/ProfileService';
 
 export const App: React.FC = () => {
-  const { me, setMe, lobbyId, setLobbyId, gameState, updateGameState } = useGameStore();
+  const { me, setMe, lobbyId, setLobbyId, gameState } = useGameStore();
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const boot = async () => {
+      console.log("System booting...");
       try {
         const tg = (window as any).Telegram?.WebApp;
-        
-        // Обязательная инициализация TG
         if (tg) {
           tg.ready();
           tg.expand();
-          tg.enableClosingConfirmation();
         }
 
         const user = tg?.initDataUnsafe?.user;
@@ -31,38 +29,40 @@ export const App: React.FC = () => {
 
         const userData = {
           id: user?.id?.toString() || localStorage.getItem('mc_uid') || `guest_${Math.random().toString(36).substr(2, 5)}`,
-          name: user?.first_name || localStorage.getItem('mc_name') || 'Underground Player',
+          name: user?.first_name || localStorage.getItem('mc_name') || 'Metro Player',
           username: user?.username,
           photo: user?.photo_url,
-          balance: 5000, // В будущем можно брать из API
+          balance: 5000,
           isHost: false,
           stats: stats,
           status: 'idle' as const
         };
 
-        // Сохраняем для fallback
         localStorage.setItem('mc_uid', userData.id);
         localStorage.setItem('mc_name', userData.name);
-
+        
         setMe(userData);
         initHostLogic();
 
-        // Инициализация сети
-        const myPeerId = await peerService.init(userData.id);
-        
-        // Проверка входа по ссылке
-        const params = new URLSearchParams(window.location.search);
-        const urlLobby = params.get('lobby');
-        if (urlLobby && urlLobby !== myPeerId) {
-          setLobbyId(urlLobby);
-          peerService.connectTo(urlLobby);
-          logToTelegram(`🔗 <b>${userData.name}</b> вошел по прямой ссылке`);
-        }
-
+        // Показываем UI сразу после загрузки профиля, не дожидаясь PeerJS
         setIsReady(true);
+
+        // Инициализация сети в фоне
+        peerService.init(userData.id).then((myPeerId) => {
+          const params = new URLSearchParams(window.location.search);
+          const urlLobby = params.get('lobby');
+          if (urlLobby && urlLobby !== myPeerId) {
+            setLobbyId(urlLobby);
+            peerService.connectTo(urlLobby);
+            logToTelegram(`🔗 ${userData.name} вошел по ссылке`);
+          }
+        }).catch(err => {
+          console.error("Network init failed, but UI is ready", err);
+        });
+
       } catch (e) {
-        console.error("Boot error:", e);
-        setError(String(e));
+        console.error("Critical boot error:", e);
+        setError(e instanceof Error ? e.message : String(e));
       }
     };
 
@@ -71,20 +71,29 @@ export const App: React.FC = () => {
 
   if (error) {
     return (
-      <div className="h-screen w-full bg-red-900/20 flex flex-col items-center justify-center p-10 text-center">
-        <div className="text-red-500 font-bold mb-4">SYSTEM CRITICAL ERROR</div>
-        <div className="text-white/60 text-xs font-mono">{error}</div>
-        <button onClick={() => window.location.reload()} className="mt-6 px-6 py-2 bg-white/10 rounded-xl">REBOOT</button>
+      <div className="h-screen w-full bg-[#0a0a0c] flex flex-col items-center justify-center p-10 text-center">
+        <div className="text-red-500 font-bold mb-2 font-mono text-xs">[BOOT_ERROR]</div>
+        <div className="text-white/40 text-[10px] font-mono break-all mb-6">{error}</div>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="px-8 py-3 bg-white/5 border border-white/10 rounded-2xl text-xs font-bold active:scale-95 transition-all"
+        >
+          RETRY SYSTEM BOOT
+        </button>
       </div>
     );
   }
 
-  if (!isReady || !me) {
+  // Если нет данных о игроке - значит мы еще в процессе boot
+  if (!me || !isReady) {
     return (
       <div className="h-screen w-full bg-[#0a0a0c] flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
-        <div className="text-emerald-500 font-mono text-[10px] tracking-[0.3em] animate-pulse">
-          ESTABLISHING CONNECTION...
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 border-4 border-emerald-500/10 rounded-full" />
+          <div className="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+        <div className="mt-8 text-emerald-500/50 font-mono text-[9px] tracking-[0.4em] uppercase animate-pulse">
+          Metro Cash OS v4.0
         </div>
       </div>
     );
@@ -92,7 +101,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0a0a0c] text-white overflow-hidden font-sans select-none flex justify-center">
-      <div className="w-full max-w-[500px] relative shadow-2xl bg-[#0a0a0c]">
+      <div className="w-full max-w-[500px] relative bg-[#0a0a0c]">
         {!lobbyId && <Home />}
         {lobbyId && gameState.phase === 'LOBBY' && <Lobby />}
         {lobbyId && gameState.phase !== 'LOBBY' && <GameTable />}

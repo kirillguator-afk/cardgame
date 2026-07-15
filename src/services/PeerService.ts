@@ -1,5 +1,5 @@
 
-import Peer, { DataConnection } from 'peerjs';
+import { Peer, DataConnection } from 'peerjs';
 import { NetworkPackage } from '../types/game';
 
 class PeerService {
@@ -11,29 +11,44 @@ class PeerService {
   onConnectionOpened: ((conn: DataConnection) => void) | null = null;
 
   async init(userId?: string): Promise<string> {
-    return new Promise((resolve) => {
-      // Если ID не передан, генерируем случайный (для GitHub Pages)
-      const finalId = userId ? `metro-${userId}` : `metro-anon-${Math.random().toString(36).substr(2, 9)}`;
-      
-      this.peer = new Peer(finalId, {
-        debug: 1,
-        config: {
-          'iceServers': [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ]
-        }
-      });
+    return new Promise((resolve, reject) => {
+      try {
+        const finalId = userId ? `metro-${userId}` : `metro-anon-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // В новых версиях PeerJS используется именованный конструктор или new Peer
+        this.peer = new Peer(finalId, {
+          debug: 1,
+          config: {
+            'iceServers': [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+            ]
+          }
+        });
 
-      this.peer.on('open', (id) => {
-        this.myId = id;
-        console.log('[Peer] Connected with ID:', id);
-        resolve(id);
-      });
+        const timeout = setTimeout(() => {
+          if (!this.myId) reject(new Error("PeerJS initialization timeout"));
+        }, 10000);
 
-      this.peer.on('connection', (conn) => {
-        this.handleConnection(conn);
-      });
+        this.peer.on('open', (id) => {
+          clearTimeout(timeout);
+          this.myId = id;
+          console.log('[Peer] Connected with ID:', id);
+          resolve(id);
+        });
+
+        this.peer.on('connection', (conn) => {
+          this.handleConnection(conn);
+        });
+
+        this.peer.on('error', (err) => {
+          console.error('[Peer] Error:', err);
+          // Не реджектам сразу, так как некоторые ошибки (типа peer-unavailable) не фатальны
+        });
+
+      } catch (err) {
+        reject(err);
+      }
     });
   }
 
@@ -53,8 +68,8 @@ class PeerService {
   }
 
   connectTo(peerId: string) {
-    console.log('[Peer] Connecting to:', peerId);
-    const conn = this.peer!.connect(peerId);
+    if (!this.peer) return;
+    const conn = this.peer.connect(peerId);
     this.handleConnection(conn);
   }
 
