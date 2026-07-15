@@ -1,12 +1,20 @@
 
 export type GameType = 'DURAK' | 'BLACKJACK' | 'ZONK';
 
+export interface PlayerStats {
+  wins: number;
+  gamesPlayed: number;
+  totalEarned: number;
+}
+
 export interface Player {
-  id: string; // Peer ID / TG ID
+  id: string;
   name: string;
+  username?: string;
   photo?: string;
   balance: number;
   isHost: boolean;
+  stats: PlayerStats; // Новое поле статистики
   cards?: any[];
   points?: number;
   status: 'idle' | 'ready' | 'playing' | 'folded';
@@ -24,7 +32,7 @@ export interface GameState {
 }
 
 export type NetworkPackage = {
-  type: 'SYNC_STATE' | 'ACTION' | 'CHAT' | 'PLAYER_JOINED';
+  type: 'SYNC_STATE' | 'ACTION' | 'CHAT' | 'PLAYER_JOINED' | 'REQUEST_JOIN';
   payload: any;
   senderId: string;
 };
