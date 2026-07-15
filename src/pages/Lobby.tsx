@@ -1,87 +1,94 @@
 
 import React from 'react';
 import { useGameStore } from '../store/useGameStore';
-import { peerService } from '../services/PeerService';
 import { motion } from 'framer-motion';
-import { Copy, Play, Users } from 'lucide-react';
+import { Share2, Play, Users, ArrowLeft } from 'lucide-react';
+import { BlackjackEngine } from '../logic/BlackjackEngine';
+import { peerService } from '../services/PeerService';
 
 export const Lobby: React.FC = () => {
-  const { gameState, lobbyId, me, updateGameState } = useGameStore();
+  const { gameState, lobbyId, me, setLobbyId, updateGameState } = useGameStore();
 
   const isHost = me?.id === lobbyId;
 
-  const copyId = () => {
-    navigator.clipboard.writeText(lobbyId || '');
-    // В ТГ можно добавить Haptic Feedback
-    if ((window as any).Telegram?.WebApp?.HapticFeedback) {
-      (window as any).Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-    }
+  const copyInviteLink = () => {
+    const url = `${window.location.origin}${window.location.pathname}?lobby=${lobbyId}`;
+    navigator.clipboard.writeText(url);
+    alert('Link copied to clipboard!');
   };
 
   const startGame = () => {
     if (!isHost) return;
-    // Инициализация игры Хостом
-    updateGameState({ phase: 'DEALING' });
-    // Тут будет вызов логики раздачи
+    
+    // Хост инициализирует колоду и раздает карты
+    const deck = BlackjackEngine.createDeck();
+    const updatedPlayers = gameState.players.map(p => ({
+      ...p,
+      cards: [deck.pop(), deck.pop()],
+      status: 'playing' as const
+    }));
+
+    const dealerCards = [deck.pop(), deck.pop()];
+    
+    const nextState = {
+      ...gameState,
+      phase: 'ACTION' as const,
+      players: updatedPlayers,
+      table: dealerCards,
+      internalDeck: deck // Сохраняем колоду (только у хоста в локальном стейте)
+    };
+
+    updateGameState(nextState);
+    peerService.broadcast({
+      type: 'SYNC_STATE',
+      payload: nextState,
+      senderId: me!.id
+    });
   };
 
   return (
-    <div className="p-6 flex flex-col h-screen max-w-md mx-auto">
-      <div className="mb-8 text-center">
-        <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-1 rounded-full text-xs font-bold mb-2 border border-emerald-500/20">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          LOBBY ACTIVE
-        </div>
-        <h2 className="text-3xl font-black italic tracking-tighter">{gameState.gameType}</h2>
+    <div className="p-6 flex flex-col h-screen">
+      <div className="flex items-center gap-4 mb-8">
+        <button onClick={() => setLobbyId(null)} className="p-2 bg-white/5 rounded-xl">
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="text-xl font-bold tracking-tight">Game Room</h2>
       </div>
 
-      <div className="glass rounded-3xl p-6 mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-gray-400 text-sm font-medium flex items-center gap-2">
-            <Users size={16} /> Players ({gameState.players.length}/4)
-          </span>
-          <button onClick={copyId} className="p-2 hover:bg-white/5 rounded-xl transition-colors text-emerald-400">
-            <Copy size={18} />
-          </button>
-        </div>
+      <div className="glass rounded-[2rem] p-8 mb-8 text-center">
+        <div className="text-emerald-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Waiting Area</div>
+        <h1 className="text-4xl font-black italic mb-6">{gameState.gameType}</h1>
         
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {gameState.players.map((p) => (
-            <motion.div 
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              key={p.id} 
-              className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl border border-white/5"
-            >
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center font-bold">
+            <div key={p.id} className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-inner">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-600 flex items-center justify-center font-bold text-black">
                 {p.name[0]}
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-bold">{p.name} {p.id === me?.id && '(You)'}</div>
-                <div className="text-[10px] text-gray-500">{p.isHost ? 'HOST' : 'PLAYER'}</div>
-              </div>
-              {p.isHost && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
-            </motion.div>
+              <span className="font-bold flex-1 text-left">{p.name}</span>
+              {p.isHost && <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-md font-bold uppercase">Host</span>}
+            </div>
           ))}
         </div>
       </div>
 
-      {isHost ? (
+      <div className="mt-auto grid grid-cols-1 gap-3">
         <button 
-          onClick={startGame}
-          disabled={gameState.players.length < 1}
-          className="mt-auto action-button py-5 bg-emerald-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+          onClick={copyInviteLink}
+          className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-white/5 border border-white/10 font-bold hover:bg-white/10 transition-all"
         >
-          <Play size={20} className="fill-current mr-2" /> START MISSION
+          <Share2 size={18} /> INVITE FRIENDS
         </button>
-      ) : (
-        <div className="mt-auto text-center text-gray-500 animate-pulse text-sm font-medium">
-          WAITING FOR HOST TO START...
-        </div>
-      )}
+
+        {isHost && (
+          <button 
+            onClick={startGame}
+            className="py-5 rounded-2xl bg-emerald-500 text-black font-black uppercase tracking-widest shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:scale-[1.02] active:scale-95 transition-all"
+          >
+            START MISSION
+          </button>
+        )}
+      </div>
     </div>
   );
 };

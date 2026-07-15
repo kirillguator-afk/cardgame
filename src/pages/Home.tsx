@@ -1,11 +1,13 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useGameStore } from '../store/useGameStore';
 import { peerService } from '../services/PeerService';
 import { motion } from 'framer-motion';
+import { Play, LogIn } from 'lucide-react';
 
 export const Home: React.FC = () => {
   const { me, setLobbyId, updateGameState } = useGameStore();
+  const [joinId, setJoinId] = useState('');
 
   const createLobby = (type: 'BLACKJACK' | 'DURAK' | 'ZONK') => {
     const id = peerService.myId;
@@ -17,49 +19,71 @@ export const Home: React.FC = () => {
     });
   };
 
+  const handleJoin = () => {
+    if (!joinId.trim()) return;
+    setLobbyId(joinId);
+    peerService.connectTo(joinId);
+    // Отправляем пакет о вступлении будет в App.tsx через useEffect
+  };
+
   return (
-    <div className="p-6 flex flex-col h-screen">
-      <header className="flex justify-between items-center mb-8">
+    <div className="p-6 flex flex-col h-screen max-w-[500px] mx-auto">
+      <header className="flex justify-between items-center mb-8 pt-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500">
+          <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500">
             METRO CASH
           </h1>
-          <p className="text-[10px] text-gray-500 uppercase tracking-widest">Underground Casino System</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest">Web P2P Casino</p>
         </div>
         <div className="bg-[#1a1a1e] px-4 py-2 rounded-2xl border border-white/5 shadow-xl">
-          <span className="text-emerald-400 font-mono">${me?.balance}</span>
+          <span className="text-emerald-400 font-mono font-bold">${me?.balance}</span>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-4 overflow-y-auto pb-20">
+      <div className="space-y-4 mb-8">
+        <div className="flex gap-2">
+          <input 
+            type="text" 
+            placeholder="ENTER ROOM ID"
+            value={joinId}
+            onChange={(e) => setJoinId(e.target.value)}
+            className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 outline-none focus:border-emerald-500/50 transition-all font-mono text-sm"
+          />
+          <button 
+            onClick={handleJoin}
+            className="bg-emerald-500 text-black p-3 rounded-2xl font-bold hover:bg-emerald-400 transition-colors"
+          >
+            <LogIn size={20} />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 overflow-y-auto pb-10">
+        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-[-10px]">Quick Create</p>
         {[
           { id: 'BLACKJACK', title: 'Blackjack', desc: 'Beat the Dealer', icon: '🃏' },
           { id: 'DURAK', title: 'Durak', desc: 'Classic Slavic Card Game', icon: '🃏' },
-          { id: 'ZONK', title: 'Zonk', desc: 'High Stakes Dice', icon: '🎲' }
         ].map((game) => (
           <motion.button
             key={game.id}
             whileTap={{ scale: 0.98 }}
             onClick={() => createLobby(game.id as any)}
-            className="relative group overflow-hidden bg-gradient-to-br from-[#1a1a1e] to-[#121214] p-5 rounded-3xl border border-white/5 text-left"
+            className="relative group overflow-hidden bg-gradient-to-br from-[#1a1a1e] to-[#121214] p-5 rounded-3xl border border-white/5 text-left shadow-lg"
           >
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-xl font-bold">{game.title}</h3>
-                <p className="text-gray-400 text-sm">{game.desc}</p>
+                <p className="text-gray-400 text-xs">{game.desc}</p>
               </div>
-              <span className="text-3xl opacity-50 group-hover:opacity-100 transition-opacity">{game.icon}</span>
+              <span className="text-3xl">{game.icon}</span>
             </div>
-            <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-emerald-500 group-hover:w-full transition-all duration-500" />
           </motion.button>
         ))}
       </div>
 
-      <div className="mt-auto">
-        <button className="w-full py-4 bg-white/5 rounded-2xl border border-dashed border-white/10 text-gray-400 text-sm font-medium">
-          FIND PUBLIC LOBBY
-        </button>
-      </div>
+      <footer className="mt-auto py-6 text-center">
+        <p className="text-[10px] text-white/20 uppercase tracking-[0.2em]">Nexus Prime v4.0 Architecture</p>
+      </footer>
     </div>
   );
 };

@@ -7,20 +7,27 @@ class PeerService {
   private connections: Map<string, DataConnection> = new Map();
   public myId: string = '';
 
-  // Колбэки для уведомления UI/Store
   onDataReceived: ((pkg: NetworkPackage) => void) | null = null;
   onConnectionOpened: ((conn: DataConnection) => void) | null = null;
 
-  async init(userId: string): Promise<string> {
+  async init(userId?: string): Promise<string> {
     return new Promise((resolve) => {
-      // Генерируем ID на основе TG ID для стабильности
-      this.peer = new Peer(`metro-cash-${userId}`, {
+      // Если ID не передан, генерируем случайный (для GitHub Pages)
+      const finalId = userId ? `metro-${userId}` : `metro-anon-${Math.random().toString(36).substr(2, 9)}`;
+      
+      this.peer = new Peer(finalId, {
         debug: 1,
+        config: {
+          'iceServers': [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ]
+        }
       });
 
       this.peer.on('open', (id) => {
         this.myId = id;
-        console.log('[Peer] My ID:', id);
+        console.log('[Peer] Connected with ID:', id);
         resolve(id);
       });
 
@@ -37,7 +44,7 @@ class PeerService {
     });
 
     conn.on('data', (data) => {
-      this.onDataReceived?.(data as NetworkPackage);
+      if (this.onDataReceived) this.onDataReceived(data as NetworkPackage);
     });
 
     conn.on('close', () => {
@@ -46,6 +53,7 @@ class PeerService {
   }
 
   connectTo(peerId: string) {
+    console.log('[Peer] Connecting to:', peerId);
     const conn = this.peer!.connect(peerId);
     this.handleConnection(conn);
   }
@@ -59,15 +67,8 @@ class PeerService {
 
   broadcast(pkg: NetworkPackage) {
     this.connections.forEach((conn) => {
-      if (conn.open) {
-        conn.send(pkg);
-      }
+      if (conn.open) conn.send(pkg);
     });
-  }
-
-  get isHost() {
-    // В нашей модели Хост тот, к кому подключаются
-    return this.connections.size > 0;
   }
 }
 
